@@ -1,29 +1,33 @@
-🌎WorldFg
-
-A social platform to connect with friends around the world.
-
-## Description
-
-WorldFg is designed to help you stay connected with friends globally. Share moments, manage connections, and build communities.
-
-## Features
-
-- 🌍 Connect with friends worldwide
-- 💬 Real-time messaging and chat
-- 📱 User-friendly interface
-- 🔒 Secure authentication
-- 👥 Friend management and profiles
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v14 or higher)
-- npm or yarn
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/juspvictory85/WorldFg.git
-cd WorldFg
+{
+  "name": "worldfg",
+  "version": "1.0.0",
+  "description": "Connect with friends and family",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest"
+  },
+  "keywords": [
+    "social",
+    "friends",
+    "connect",
+    "messaging"
+  ],
+  "author": "juspvictory85",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.0.3",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.5.0"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  }
+}
