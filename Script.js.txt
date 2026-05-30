@@ -1,0 +1,217 @@
+// ---------- DATA MODELS ----------
+let users = JSON.parse(localStorage.getItem('WorldFg_users_main')) || [];
+let posts = JSON.parse(localStorage.getItem('WorldFg_posts_main')) || [];
+let friendRequests = JSON.parse(localStorage.getItem('WorldFg_friendReqs')) || [];
+let currentUserId = localStorage.getItem('WorldFg_currentUser')? parseInt(localStorage.getItem('WorldFg_currentUser')) : null;
+let pendingVerification = null;
+
+// Helper functions
+function saveData() {
+  localStorage.setItem('WorldFg_users_main', JSON.stringify(users));
+  localStorage.setItem('WorldFg_posts_main', JSON.stringify(posts));
+  localStorage.setItem('WorldFg_friendReqs', JSON.stringify(friendRequests));
+}
+
+function currentUser() { return users.find(u => u.id === currentUserId); }
+
+function showToast(msg) {
+  const toast = document.getElementById('toastMsg');
+  toast.innerText = msg;
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
+
+// Initialize Demo Data
+if(users.length === 0) {
+  users.push({ id: 1, name: "Alex Morgan", email: "alex@worldfg.com", password: "123", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", coverPic: "https://picsum.photos/300/100?random=1", friends: [2] });
+  users.push({ id: 2, name: "Jamie Lin", email: "jamie@worldfg.com", password: "123", profilePic: "https://randomuser.me/api/portraits/women/2.jpg", coverPic: "https://picsum.photos/300/100?random=2", friends: [1] });
+  users.push({ id: 3, name: "Taylor Ray", email: "taylor@worldfg.com", password: "123", profilePic: "https://randomuser.me/api/portraits/women/3.jpg", coverPic: "https://picsum.photos/300/100?random=3", friends: [] });
+  posts.push({ id: 101, userId: 1, text: "Welcome to WorldFg! Share your feedback and connect globally 🌍", media: "", timestamp: Date.now(), likes: [2], comments: [] });
+  posts.push({ id: 102, userId: 2, text: "Just uploaded a new video tutorial about WorldFg features! 🎥", media: "", timestamp: Date.now() - 7200000, likes: [1], comments: [] });
+  friendRequests.push({ fromUserId: 3, toUserId: 1 });
+  saveData();
+}
+
+// Render Feed
+function renderFeed() {
+  const feedDiv = document.getElementById('newsFeedContainer');
+  const sortedPosts = [...posts].sort((a,b) => b.timestamp - a.timestamp);
+  feedDiv.innerHTML = sortedPosts.map(post => {
+    const author = users.find(u => u.id === post.userId);
+    const isLiked = post.likes.includes(currentUserId);
+    return `<div class="post-card">
+      <div class="post-header"><img src="${author?.profilePic || ''}"><div><b>${author?.name}</b><div style="font-size:0.7rem;">${new Date(post.timestamp).toLocaleString()}</div></div></div>
+      <div>${post.text}</div>${post.media? `<img src="${post.media}" class="post-media">` : ''}
+      <div class="post-stats"><span onclick="toggleLike(${post.id})">${isLiked? '❤️' : '👍'} ${post.likes.length} likes</span><span>💬 Feedback</span><span>🔄 Share</span></div>
+    </div>`;
+  }).join('');
+}
+
+window.toggleLike = function(postId) {
+  const p = posts.find(p => p.id === postId);
+  if(p.likes.includes(currentUserId)) p.likes = p.likes.filter(id => id!== currentUserId);
+  else p.likes.push(currentUserId);
+  saveData(); renderFeed();
+}
+
+// Render Friend Requests & Suggestions
+function renderRequestsAndSuggestions() {
+  const incoming = friendRequests.filter(r => r.toUserId === currentUserId);
+  document.getElementById('requestsList').innerHTML = incoming.map(req => {
+    const fromUser = users.find(u => u.id === req.fromUserId);
+    return `<div class="request-item"><img src="${fromUser?.profilePic}" class="friend-avatar"><div><b>${fromUser?.name}</b><div><button class="btn-sm" onclick="acceptRequest(${req.fromUserId})">Accept</button><button class="btn-outline btn-sm" onclick="rejectRequest(${req.fromUserId})">Ignore</button></div></div></div>`;
+  }).join('');
+  if(incoming.length === 0) document.getElementById('requestsList').innerHTML = '<p style="font-size:0.8rem;">No pending requests</p>';
+  const requestBadge = document.getElementById('requestBadge');
+  if(incoming.length > 0) { requestBadge.innerText = incoming.length; requestBadge.style.display = 'inline-block'; } else requestBadge.style.display = 'none';
+
+  const curr = currentUser();
+  const friendIds = curr.friends || [];
+  const sentReqs = friendRequests.filter(r => r.fromUserId === currentUserId).map(r => r.toUserId);
+  const suggestions = users.filter(u => u.id!== currentUserId &&!friendIds.includes(u.id) &&!sentReqs.includes(u.id));
+  document.getElementById('suggestionsList').innerHTML = suggestions.slice(0,4).map(u => `<div class="suggestion-item"><img src="${u.profilePic}" class="friend-avatar"><div><b>${u.name}</b><div><button class="btn-sm" onclick="sendFriendRequest(${u.id})">Add Friend</button></div></div></div>`).join('');
+}
+
+window.acceptRequest = function(fromId) {
+  const curr = currentUser();
+  const sender = users.find(u => u.id === fromId);
+  if(curr && sender) {
+    if(!curr.friends) curr.friends = [];
+    if(!sender.friends) sender.friends = [];
+    if(!curr.friends.includes(fromId)) curr.friends.push(fromId);
+    if(!sender.friends.includes(currentUserId)) sender.friends.push(currentUserId);
+  }
+  friendRequests = friendRequests.filter(r =>!(r.fromUserId === fromId && r.toUserId === currentUserId));
+  saveData();
+  renderRequestsAndSuggestions();
+  showToast(`You are now friends with ${sender.name}`);
+}
+
+window.rejectRequest = function(fromId) {
+  friendRequests = friendRequests.filter(r =>!(r.fromUserId === fromId && r.toUserId === currentUserId));
+  saveData();
+  renderRequestsAndSuggestions();
+}
+
+window.sendFriendRequest = function(toId) {
+  if(friendRequests.some(r => r.fromUserId === currentUserId && r.toUserId === toId)) return;
+  friendRequests.push({ fromUserId: currentUserId, toUserId: toId });
+  saveData();
+  renderRequestsAndSuggestions();
+  showToast("Friend request sent!");
+}
+
+// Profile update & UI refresh
+function updateProfileUI() {
+  const user = currentUser();
+  if(user) {
+    document.getElementById('profileNameDisplay').innerText = user.name;
+    document.getElementById('profileImageDisplay').src = user.profilePic || 'https://randomuser.me/api/portraits/lego/1.jpg';
+    document.getElementById('coverImageDisplay').src = user.coverPic || 'https://picsum.photos/300/100?random=1';
+    document.getElementById('feedUserAvatar').src = user.profilePic || 'https://randomuser.me/api/portraits/lego/1.jpg';
+  }
+}
+
+// Post creation with media
+let pendingMedia = null;
+document.getElementById('photoVideoTrigger')?.addEventListener('click', () => { document.getElementById('postMediaFile').click(); });
+document.getElementById('postMediaFile')?.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(file) { const reader = new FileReader(); reader.onload = ev => { pendingMedia = ev.target.result; showToast("Media ready! Add text and post."); }; reader.readAsDataURL(file); }
+});
+function createPost() {
+  const text = document.getElementById('postTextInput').value.trim();
+  if(!text &&!pendingMedia) { showToast("Please write something or add media"); return; }
+  const newPost = { id: Date.now(), userId: currentUserId, text: text || "Shared media", media: pendingMedia || "", timestamp: Date.now(), likes: [], comments: [] };
+  posts.unshift(newPost);
+  saveData();
+  document.getElementById('postTextInput').value = '';
+  pendingMedia = null;
+  renderFeed();
+  showToast("Post published successfully!");
+}
+document.getElementById('submitPostBtn')?.addEventListener('click', createPost);
+document.getElementById('postTextInput')?.addEventListener('keypress', (e) => { if(e.key === 'Enter') createPost(); });
+
+// Global search
+document.getElementById('globalSearchInput')?.addEventListener('input', (e) => {
+  const term = e.target.value.toLowerCase();
+  if(term.length < 2) return;
+  const matchedUsers = users.filter(u => u.name.toLowerCase().includes(term) && u.id!== currentUserId);
+  const matchedPosts = posts.filter(p => p.text.toLowerCase().includes(term));
+  let resultMsg = `🔍 Search results for "${term}":\n`;
+  if(matchedUsers.length) resultMsg += `\n👥 Users: ${matchedUsers.map(u=>u.name).join(', ')}`;
+  if(matchedPosts.length) resultMsg += `\n📝 Posts: ${matchedPosts.length} found`;
+  if(!matchedUsers.length &&!matchedPosts.length) resultMsg += "\nNo results found";
+  alert(resultMsg);
+});
+
+// Profile editor modal
+document.getElementById('openProfileEditor')?.addEventListener('click', () => { document.getElementById('profileModal').style.display = 'flex'; });
+document.getElementById('saveProfileChanges')?.addEventListener('click', () => {
+  const user = currentUser();
+  const picFile = document.getElementById('profilePicUpload').files[0];
+  const coverFile = document.getElementById('coverUpload').files[0];
+  if(picFile) { const reader = new FileReader(); reader.onload = e => { user.profilePic = e.target.result; saveData(); updateProfileUI(); renderFeed(); }; reader.readAsDataURL(picFile); }
+  if(coverFile) { const reader = new FileReader(); reader.onload = e => { user.coverPic = e.target.result; saveData(); updateProfileUI(); }; reader.readAsDataURL(coverFile); }
+  closeProfileModal();
+  showToast("Profile updated!");
+});
+function closeProfileModal() { document.getElementById('profileModal').style.display = 'none'; }
+window.closeProfileModal = closeProfileModal;
+
+// Menu navigation
+document.querySelectorAll('.menu-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const page = item.dataset.page;
+    if(page === 'feed') { renderFeed(); document.querySelector('.create-post').style.display = 'flex'; document.getElementById('newsFeedContainer').style.display = 'block'; }
+    else if(page === 'friends') { showToast("👥 Friends list – You can manage connections here."); }
+    else if(page === 'videos') { showToast("🎬 Videos: Upload and watch reels – coming soon!"); }
+    else if(page === 'feedback') { showToast("💬 Feedback Hub: Share your thoughts about WorldFg!"); }
+  });
+});
+
+// AUTH LOGIC
+function showDashboard() {
+  document.getElementById('authModal').style.display = 'none';
+  document.getElementById('appContainer').style.display = 'block';
+  updateProfileUI();
+  renderFeed();
+  renderRequestsAndSuggestions();
+}
+
+document.getElementById('doLoginBtn')?.addEventListener('click', () => {
+  const email = document.getElementById('loginEmail').value;
+  const pwd = document.getElementById('loginPassword').value;
+  const user = users.find(u => u.email === email && u.password === pwd);
+  if(user) { currentUserId = user.id; localStorage.setItem('WorldFg_currentUser', currentUserId); showDashboard(); }
+  else document.getElementById('loginError').innerText = "Invalid email or password";
+});
+document.getElementById('showSignupBtn')?.addEventListener('click', () => { document.getElementById('loginForm').style.display = 'none'; document.getElementById('signupForm').style.display = 'block'; });
+document.getElementById('showLoginBtn')?.addEventListener('click', () => { document.getElementById('signupForm').style.display = 'none'; document.getElementById('loginForm').style.display = 'block'; });
+document.getElementById('doSignupBtn')?.addEventListener('click', () => {
+  const name = document.getElementById('signupName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const pwd = document.getElementById('signupPassword').value;
+  if(!name ||!email ||!pwd) { document.getElementById('signupError').innerText = "All fields required"; return; }
+  if(users.find(u => u.email === email)) { document.getElementById('signupError').innerText = "Email already exists"; return; }
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  pendingVerification = { name, email, password: pwd, code };
+  alert(`[DEMO] Verification Code: ${code}\nSent to ${email} (simulated)`);
+  document.getElementById('signupForm').style.display = 'none';
+  document.getElementById('verifyBox').style.display = 'block';
+});
+document.getElementById('verifySubmitBtn')?.addEventListener('click', () => {
+  const entered = document.getElementById('verifyCodeInput').value.trim();
+  if(pendingVerification && entered === pendingVerification.code) {
+    const newId = Date.now();
+    const newUser = { id: newId, name: pendingVerification.name, email: pendingVerification.email, password: pendingVerification.password, profilePic: "https://randomuser.me/api/portraits/lego/1.jpg", coverPic: "https://picsum.photos/300/100", friends: [] };
+    users.push(newUser);
+    saveData();
+    currentUserId = newId;
+    localStorage.setItem('WorldFg_currentUser', currentUserId);
+    showDashboard();
+  } else { alert("Invalid verification code"); }
+});
+document.getElementById('logoutNavBtn')?.addEventListener('click', () => { localStorage.removeItem('WorldFg_currentUser'); currentUserId = null; document.getElementById('appContainer').style.display = 'none'; document.getElementById('authModal').style.display = 'flex'; });
+if(currentUserId && users.find(u=>u.id===currentUserId)) showDashboard();
